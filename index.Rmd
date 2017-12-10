@@ -1,30 +1,100 @@
 ---
-title: "index"
-author: "Vesa Huotelin"
-date: "10 12 2017"
+title: "Regression model for final grade in Portugese language course"
+author: "Vesa Huotelin, vesa.huotelin@helsinki.fi"
+date: "10.12.2017"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(GGally)
+library(ggplot2)
+source("wrangling.R")
 ```
 
-## R Markdown
+## Description
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+In this exercise I will build a simple linear regression model for final grade in Portugese language course. For that I am using *students* data that is available at https://archive.ics.uci.edu/ml/machine-learning-databases/00320/.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+My approach is to have no initial hypothesis about possible predictors. In contrary, I will start with all the variables in the model and use *backwards elimination* method in order to find the most relevant predictors.
 
-```{r cars}
-summary(cars)
+## The data
+
+I have made some changes to the original dataset. The R code for that can be found here. In addition to renaming the target variable (*Grade* <- *G3*), all the ordinal variables have been recoded as binary variables. For example:
+
+  - Ordinal variable: *famrel* - quality of family relationships (numeric: from 1 - very bad to 5 - excellent)
+  - Binary variable: *famrelGood* - good quality of family relationships (numeric: 1 - yes, 0 - no.)
+
+In this case, the variable *famrelGood* gets the value of 1, when *famrel* is 4 or 5. See the R code for more details. There were no missing data in the dataset.
+
+These are the variables used:
+
+Target variable:
+
+  - *Grade*: final grade (numeric: from 0 to 20)
+  
+Predictors:
+
+  - *school* - student's school (binary: "GP" - Gabriel Pereira or "MS" - Mousinho da Silveira)
+  - *sex* - student's sex (binary: "F" - female or "M" - male)
+  - *age* - student's age (numeric: from 15 to 22)
+  - *address* - student's home address type (binary: "U" - urban or "R" - rural)
+  - *famsize* - family size (binary: "LE3" - less or equal to 3 or "GT3" - greater than 3)
+  - *Pstatus* - parent's cohabitation status (binary: "T" - living together or "A" - apart)
+  - *MeduHigh* - mother's education is secondary level or higher (numeric: 1 - yes,  0 - no)
+  - *FeduHigh* - father's education is secondary level or higher (numeric: 1 - yes,  0 - no)
+  - *Mjob* - mother's job (nominal: "teacher", "health" care related, civil "services" (e.g. administrative or police), "at_home" or "other")
+  - *Fjob* - father's job (nominal: "teacher", "health" care related, civil "services" (e.g. administrative or police), "at_home" or "other")
+  - *reason* - reason to choose this school (nominal: close to "home", school "reputation", "course" preference or "other")
+  - *guardian* - student's guardian (nominal: "mother", "father" or "other")
+  - *traveltime30min* - travel time from home to school is more than 30 minutes (numeric: 1 - yes, 2 - no)
+  - *studytime5h* - weekly study time is more than 5 hours (numeric: 1 - yes, 2 - no)
+  - *failures* - number of past class failures (numeric: n if 1<=n<3, else 4)
+  - *schoolsup* - extra educational support (binary: yes or no)
+  - *famsup* - family educational support (binary: yes or no)
+  - *paid* - extra paid classes within the course subject (Math or Portuguese) (binary: yes or no)
+  - *activities* - extra-curricular activities (binary: yes or no)
+  - *nursery* - attended nursery school (binary: yes or no)
+  - *higher* - wants to take higher education (binary: yes or no)
+  - *internet* - Internet access at home (binary: yes or no)
+  - *romantic* - with a romantic relationship (binary: yes or no)
+  - *famrelGood* - good quality of family relationships (numeric: 1 - yes 2 - no)
+  - *freetimeHigh* - high rate of free time after school (numeric: 1 - yes 2 - no)
+  - *gooutHigh* - high rate of going out with friends (numeric: 1 - yes 2 - no)
+  - *DalcHigh* - high rate of workday alcohol consumption (numeric: 1 - yes 2 - no)
+  - *WalcHigh* - high rate of weekend alcohol consumption (numeric: 1 - yes 2 - no)
+  - *healthGood* - current health status is good (numeric: 1 - yes 2 - no)
+  - *absences* - number of school absences (numeric: from 0 to 93)
+
+## Some pre-analysis of continuous predictors
+
+Since the size of data is quite small and the computing times are short, there's no need to preselect variables e.g. by their correlation with the target variable in this case. But I would like to plot all the scale predictors against target variable by *sex* just out of curiosity. Potential nonlinear connections with the target variable could be seen here.
+
+```{r echo = T, eval = T}
+ggpairs(d[c("sex", "age", "failures", "absences", "Grade")], mapping = aes(col = sex, alpha = .3), lower = list(combo = wrap("facethist", bins = 20))) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 ```
 
-## Including Plots
+I wouldn't call the plot very informative. A high negative correlation between *failures* and *Grade* is evident, though.
 
-You can also embed plots, for example:
+## Backwards elimination method for model selection
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+The model is selected by using backwards elimination method. It means that in the beginning the linear regression model is fitted including all the predictors. In the next step the worst predictor is removed and the model is fitted again. In this exercise the quality of the predictor is determined by *Bayesian information criteria (BIC)*. While a good fit of the model is rewarded, penalty is given for each parameter in the model in order to avoid complexity and overfitting. The lower the BIC, the better the model according to the criteria. The elimination process is stopped when the BIC has reached it's lowest point and would start to increase as a result of next elimination. 
+
+In order to use *AIC* (*Akaike's information criteria*) instead of BIC, one has to choose *k* = 2 in the step()-function. Because in this exercise I am not going to use separate test set or do any cross-validation, I prefer using BIC instead of AIC, because it gives greater penalty for model complexity. It will result in a *safer* model in that sense.
+
+```{r echo = T, eval = T}
+fullModel <- lm(data = d, formula = Grade ~.)
+chosenModel <- step(fullModel, direction = "backward", k = log(nrow(d)), trace=FALSE)
+summary(chosenModel)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Before digging into the results, we could try to add a quadratic term for *failures*, the only scale variable in the potentially final model:
+
+```{r echo = T, eval = T}
+d$failures2 <- (d$failures)^2
+fullModel <- lm(data = d, formula = Grade ~.)
+chosenModel <- step(fullModel, direction = "backward", k = log(nrow(d)), trace=FALSE)
+summary(chosenModel)
+```
