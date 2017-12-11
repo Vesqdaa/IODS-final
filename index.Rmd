@@ -2,7 +2,10 @@
 title: "Regression model for final grade in Portugese language course"
 author: "Vesa Huotelin, vesa.huotelin@helsinki.fi"
 date: "10.12.2017"
-output: html_document
+abstract: "According to results of fitting a linear regression model to a student data from a Portugese language course, the time used in studying results in high grades. It also matters what school the student goes to. Furthermore, male students score somewhat lower compared to female students."
+output:
+  html_document:
+    code_folding: show
 ---
 
 ```{r setup, include=FALSE}
@@ -16,7 +19,7 @@ source("wrangling.R")
 
 In this exercise I will build a simple linear regression model for final grade in Portugese language course. For that I am using *students* data that is available at https://archive.ics.uci.edu/ml/machine-learning-databases/00320/.
 
-My approach is to have no initial hypothesis about possible predictors. In contrary, I will start with all the variables in the model and use *backwards elimination* method in order to find the most relevant predictors.
+My approach is to have no initial hypothesis about possible predictors. In contrary, I will start with all the variables in the model and use *backward elimination* method in order to find the most relevant predictors.
 
 ## The data
 
@@ -29,11 +32,11 @@ In this case, the variable *famrelGood* gets the value of 1, when *famrel* is 4 
 
 These are the variables used:
 
-Target variable:
+**Target variable**:
 
   - *Grade*: final grade (numeric: from 0 to 20)
   
-Predictors:
+**Predictors**:
 
   - *school* - student's school (binary: "GP" - Gabriel Pereira or "MS" - Mousinho da Silveira)
   - *sex* - student's sex (binary: "F" - female or "M" - male)
@@ -78,11 +81,11 @@ ggpairs(d[c("sex", "age", "failures", "absences", "Grade")], mapping = aes(col =
 
 I wouldn't call the plot very informative. A high negative correlation between *failures* and *Grade* is evident, though.
 
-## Backwards elimination method for model selection
+## Backward elimination method for model selection
 
-The model is selected by using backwards elimination method. It means that in the beginning the linear regression model is fitted including all the predictors. In the next step the worst predictor is removed and the model is fitted again. In this exercise the quality of the predictor is determined by *Bayesian information criteria (BIC)*. While a good fit of the model is rewarded, penalty is given for each parameter in the model in order to avoid complexity and overfitting. The lower the BIC, the better the model according to the criteria. The elimination process is stopped when the BIC has reached it's lowest point and would start to increase as a result of next elimination. 
+The model is selected by using backward elimination method. It means that in the beginning the linear regression model is fitted including all the predictors. In the next step the worst predictor is removed and the model is fitted again. In this exercise the quality of the predictor is determined by *Bayesian information criteria (BIC)*. While a good fit of the model is rewarded, penalty is given for each parameter in the model in order to avoid complexity and overfitting. The lower the BIC, the better the model according to the criteria. The elimination process is stopped when the BIC has reached it's lowest point and would start to increase as a result of next elimination. 
 
-In order to use *AIC* (*Akaike's information criteria*) instead of BIC, one has to choose *k* = 2 in the step()-function. Because in this exercise I am not going to use separate test set or do any cross-validation, I prefer using BIC instead of AIC, because it gives greater penalty for model complexity. It will result in a *safer* model in that sense.
+In order to use *AIC* (*Akaike's information criteria*) instead of BIC, one has to choose *k* = 2 in the step()-function. I prefer using BIC because it gives greater penalty for model complexity. It will result in a *safer* model in that sense.
 
 ```{r echo = T, eval = T}
 fullModel <- lm(data = d, formula = Grade ~.)
@@ -90,11 +93,69 @@ chosenModel <- step(fullModel, direction = "backward", k = log(nrow(d)), trace=F
 summary(chosenModel)
 ```
 
-Before digging into the results, we could try to add a quadratic term for *failures*, the only scale variable in the potentially final model:
+In the *Estimate* column we can see estimated parameter values for each predictor. If the value is positive, then high values of that variable indicate high final grade. If negative, then vice versa. A parameter value close to zero suggests no connection between the predictor and exam points. 
+
+To test the null hypothesis that the real parameter value is zero, one can use t-test. In the summary above, the test statistic and its 2-sided p-value have been included in the table. 
+
+Before digging into the results, I would like to see whether the connection between *failures* and *Grade* is linear or not. But since there are only a small number of observations that has the value higher than 1, the parameter estimate for possible quadratic term might not be that reliable:
 
 ```{r echo = T, eval = T}
-d$failures2 <- (d$failures)^2
+table(d$failures)
+```
+
+So, let's just add a simple binary version of *failures* and see if it gives any uplift to the model:
+
+```{r echo = T, eval = T}
+d$failures1 <- ifelse(d$failures > 0, 1, 0)
 fullModel <- lm(data = d, formula = Grade ~.)
 chosenModel <- step(fullModel, direction = "backward", k = log(nrow(d)), trace=FALSE)
 summary(chosenModel)
 ```
+
+Indeed, *failures1* replaced *failures* in the model while giving some lift in R-squared! The multiple R-squared of the model is now 33 %. It means that the model explains 33 % of the variation in exam points. *MeduHigh* wasn't included this time. Let's return to the diagnostics later and see what kind of variables do we actually have in the model:
+
+- *school* - Being a student in Mousinho da Silva school will result in 1.5 points drop in final grade compared to being a student in Gabriel Pereira school. Do they have different grading criteria or is GP simply a better school?
+
+- *sexM* - 0.7 points will vanish if the student is a male.
+
+- *schoolsup* - Extra educational support shows up as 1.3 point drop in the final grade. Because it wouldn't make sense to assume that extra support would do any damage, a possible interpretation would be that extra support is given to poorly performing students, those who get low grades.
+
+- *higher* - If the student wants to take higher education, the final grade increases 2.0 points. It probably means that high scoring and talented students most likely are interested in aiming high and taking higher education.
+
+- *studytime5h* - Studying over 5h weekly results in 0.86 points increase in final grade.
+
+- *DalcHigh* - High rate of daily alcohol consumption will decrease estimated final grade by 1.4 points. Again, it is not clear if the alcohol consumption itself is the cause or is there something else behind both low performance and alcohol consumption.
+
+- *failures1* - If the student has at least one failed the class in the past, the estimated grade decrease by 2.9 points. It doesn't mean that failing would cast a shadow on the next try, but most likely students that fail classes aren't that good students and hence score low final grades.
+
+## Model diagnostics
+
+Let's draw some diagnostics plots. When plotting residuals agains fitted values, we can see:
+
+- The dependence between the fitted values and *Grade* seems linear. At least there's no significant evidence of nonlinearity.
+- No noticable difference in the residual variance between high and low scoring students in the exam.
+- The most extreme outliers are not that extreme.
+
+```{r eval = T, echo = T}
+plot(chosenModel, which = 1)
+```
+
+From theoretical quantiles we can see that the residuals are not normally distributed at lower levels, but the rest of the plot looks quite good. In case of normally distributed residuals, the points would follow the straight dashed line.
+
+```{r eval = T, echo = T}
+plot(chosenModel, which = 2)
+```
+
+By plotting standardized residuals against Leverage, we can find influential outliers -- those that matter. This time, the dashed red line marking the Cook's distance doesn't even show up in the plot, so there are no such outliers we should be too worried about. Problematic outliers would appear in the plot in upper or lower right corner beyond Cook's distance.
+
+```{r eval = T, echo = T}
+plot(chosenModel, which = 5)
+```
+
+## Discussion
+
+The most evident result of the modeling exercise is that good students get good grades. Predictors *schoolsup*, *higher* and *failures1* seemed to describe the student's overall performance level rather than something they did during the Portugese language course. For alcohol consumption (*DalcHigh*) it is possible that drinking itself causes low grades, but it can also be a sign of depression or other social problems that are related to low performance in school. Studying time (*studytime5h*) increased the final grade, which is not a surprise. It is easy to imagine a causal relationship in effect there. 
+
+Finally, there were two predictors in the model that raise questions. Why are male students performing worse than their female friends? If boys are worse students than girls in general, then the variables in the data don't fully describe the overall performance level of the students. Other, not that nice, explanation would be that the person giving the grades is discriminating male students! Clearly, more research is needed. The other debatable predictor was the *school* variable. Why are students performing better in Gabriel Pereira school? Is there a quality difference in teaching, or is the grading criterion different compared to that in Mousinho da Silva?
+
+I chose to use quite safe settings in my backward elimination phase. Perhaps using AIC instead of BIC would have resulted in better model and increased the number of predictors. That could have brought some light on interpreting the other predictors as well.
