@@ -1,5 +1,5 @@
 ---
-title: "Regression model for final grade in Portugese language course"
+title: "Predicting course grade using linear regression model on student data"
 author: "Vesa Huotelin, vesa.huotelin@helsinki.fi"
 date: "10.12.2017"
 abstract: "According to results of fitting a linear regression model to a student data from a Portugese language course, the time used in studying results in high grades. It also matters what school the student goes to. Furthermore, male students score somewhat lower compared to female students."
@@ -23,12 +23,12 @@ My approach is to have no initial hypothesis about possible predictors. In contr
 
 ## The data
 
-I have made some changes to the original dataset. The R code for that can be found here. In addition to renaming the target variable (*Grade* <- *G3*), all the ordinal variables have been recoded as binary variables. For example:
+I have made some changes to the original dataset. In addition to renaming the target variable (*Grade* <- *G3*), all the ordinal variables have been recoded as binary variables. For example:
 
   - Ordinal variable: *famrel* - quality of family relationships (numeric: from 1 - very bad to 5 - excellent)
   - Binary variable: *famrelGood* - good quality of family relationships (numeric: 1 - yes, 0 - no.)
 
-In this case, the variable *famrelGood* gets the value of 1, when *famrel* is 4 or 5. See the R code for more details. There were no missing data in the dataset.
+In this case, the variable *famrelGood* gets the value of 1, when *famrel* is 4 or 5. See the [R code](https://github.com/Vesqdaa/IODS-final/blob/master/wrangling.R) for more details. There were no missing observations in the data.
 
 These are the variables used:
 
@@ -61,12 +61,12 @@ These are the variables used:
   - *higher* - wants to take higher education (binary: yes or no)
   - *internet* - Internet access at home (binary: yes or no)
   - *romantic* - with a romantic relationship (binary: yes or no)
-  - *famrelGood* - good quality of family relationships (numeric: 1 - yes 2 - no)
-  - *freetimeHigh* - high rate of free time after school (numeric: 1 - yes 2 - no)
-  - *gooutHigh* - high rate of going out with friends (numeric: 1 - yes 2 - no)
-  - *DalcHigh* - high rate of workday alcohol consumption (numeric: 1 - yes 2 - no)
-  - *WalcHigh* - high rate of weekend alcohol consumption (numeric: 1 - yes 2 - no)
-  - *healthGood* - current health status is good (numeric: 1 - yes 2 - no)
+  - *famrelGood* - good quality of family relationships (numeric: 1 - yes 0 - no)
+  - *freetimeHigh* - high rate of free time after school (numeric: 1 - yes 0 - no)
+  - *gooutHigh* - high rate of going out with friends (numeric: 1 - yes 0 - no)
+  - *DalcHigh* - high rate of workday alcohol consumption (numeric: 1 - yes 0 - no)
+  - *WalcHigh* - high rate of weekend alcohol consumption (numeric: 1 - yes 0 - no)
+  - *healthGood* - current health status is good (numeric: 1 - yes 0 - no)
   - *absences* - number of school absences (numeric: from 0 to 93)
 
 ## Some pre-analysis of continuous predictors
@@ -93,7 +93,7 @@ chosenModel <- step(fullModel, direction = "backward", k = log(nrow(d)), trace=F
 summary(chosenModel)
 ```
 
-In the *Estimate* column we can see estimated parameter values for each predictor. If the value is positive, then high values of that variable indicate high final grade. If negative, then vice versa. A parameter value close to zero suggests no connection between the predictor and exam points. 
+In the *Estimate* column we can see estimated parameter values for each predictor. If the value is positive, then high values of that variable indicate high final grade. If negative, then vice versa. A parameter value close to zero suggests no connection between the predictor and final grade. 
 
 To test the null hypothesis that the real parameter value is zero, one can use t-test. In the summary above, the test statistic and its 2-sided p-value have been included in the table. 
 
@@ -114,19 +114,19 @@ summary(chosenModel)
 
 Indeed, *failures1* replaced *failures* in the model while giving some lift in R-squared! The multiple R-squared of the model is now 33 %. It means that the model explains 33 % of the variation in exam points. *MeduHigh* wasn't included this time. Let's return to the diagnostics later and see what kind of variables do we actually have in the model:
 
-- *school* - Being a student in Mousinho da Silva school will result in 1.5 points drop in final grade compared to being a student in Gabriel Pereira school. Do they have different grading criteria or is GP simply a better school?
+- *school* - Being a student in Mousinho da Silva school will result in `r -round(chosenModel$coefficients[2],1)` points drop in final grade compared to being a student in Gabriel Pereira school. Do they have different grading criteria or is GP simply a better school?
 
-- *sexM* - 0.7 points will vanish if the student is a male.
+- *sexM* - `r -round(chosenModel$coefficients[3],1)` points will vanish if the student is a male.
 
-- *schoolsup* - Extra educational support shows up as 1.3 point drop in the final grade. Because it wouldn't make sense to assume that extra support would do any damage, a possible interpretation would be that extra support is given to poorly performing students, those who get low grades.
+- *schoolsup* - Extra educational support shows up as `r -round(chosenModel$coefficients[4],1)` point drop in the final grade. Because it wouldn't make sense to assume that extra support would do any damage, a possible interpretation would be that extra support is given to poorly performing students, those who get low grades.
 
-- *higher* - If the student wants to take higher education, the final grade increases 2.0 points. It probably means that high scoring and talented students most likely are interested in aiming high and taking higher education.
+- *higher* - If the student wants to take higher education, the final grade increases `r round(chosenModel$coefficients[5],1)` points. It probably means that high scoring and talented students most likely are interested in aiming high and taking higher education.
 
-- *studytime5h* - Studying over 5h weekly results in 0.86 points increase in final grade.
+- *studytime5h* - Studying over 5h weekly results in `r round(chosenModel$coefficients[6],1)` points increase in final grade.
 
-- *DalcHigh* - High rate of daily alcohol consumption will decrease estimated final grade by 1.4 points. Again, it is not clear if the alcohol consumption itself is the cause or is there something else behind both low performance and alcohol consumption.
+- *DalcHigh* - High rate of daily alcohol consumption will decrease estimated final grade by `r -round(chosenModel$coefficients[7],1)` points. Again, it is not clear if the alcohol consumption itself is the cause or is there something else behind both low performance and alcohol consumption.
 
-- *failures1* - If the student has at least one failed the class in the past, the estimated grade decrease by 2.9 points. It doesn't mean that failing would cast a shadow on the next try, but most likely students that fail classes aren't that good students and hence score low final grades.
+- *failures1* - If the student has at least one failed the class in the past, the estimated grade decrease by `r -round(chosenModel$coefficients[8],1)` points. It doesn't mean that failing would cast a shadow on the next try, but most likely students that fail classes aren't that good students and hence score low final grades.
 
 ## Model diagnostics
 
@@ -158,4 +158,4 @@ The most evident result of the modeling exercise is that good students get good 
 
 Finally, there were two predictors in the model that raise questions. Why are male students performing worse than their female friends? If boys are worse students than girls in general, then the variables in the data don't fully describe the overall performance level of the students. Other, not that nice, explanation would be that the person giving the grades is discriminating male students! Clearly, more research is needed. The other debatable predictor was the *school* variable. Why are students performing better in Gabriel Pereira school? Is there a quality difference in teaching, or is the grading criterion different compared to that in Mousinho da Silva?
 
-I chose to use quite safe settings in my backward elimination phase. Perhaps using AIC instead of BIC would have resulted in better model and increased the number of predictors. That could have brought some light on interpreting the other predictors as well.
+I chose to use quite safe settings in my backward elimination phase. Perhaps using AIC instead of BIC would result in better model and increased the number of predictors. That could bring some light on interpreting the other predictors as well.
